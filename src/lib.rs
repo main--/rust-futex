@@ -124,18 +124,19 @@ impl RwFutex2 {
                 // right now, we just don't care
                 // worst case: next release_write calls FUTEX_WAKE up for a read that
                 //             doesn't exist - aka 1 wasted syscall
+                continue;
             } else if (val & M_READERS == 0) && (val & E_WRITERS_LOCK != 0) {
                 // fix deadlock if our temporary new reader
                 // interleaved with release_read() calls
                 // so that we reach zero HERE => might have to wake up writers
                 futex_wake_bitset(&self.futex, 1, ID_WRITER).unwrap();
-            } else {
-                if let Err(e) = futex_wait_bitset(&self.futex, val, ID_READER) {
-                    match e.kind() {
-                        io::ErrorKind::WouldBlock
-                            | io::ErrorKind::Interrupted => (), // ok
-                        _ => panic!("{}", e),
-                    }
+            }
+            
+            if let Err(e) = futex_wait_bitset(&self.futex, val, ID_READER) {
+                match e.kind() {
+                    io::ErrorKind::WouldBlock
+                        | io::ErrorKind::Interrupted => (), // ok
+                    _ => panic!("{}", e),
                 }
             }
         }

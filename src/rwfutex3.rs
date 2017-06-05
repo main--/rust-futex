@@ -6,23 +6,6 @@ pub struct RwFutex2 {
     futex: AtomicU32,
 }
 
-//const WRITER_LOCKED: i32 = i32::MIN;
-//const WRITER_LOCKED_READERS_QUEUED: i32 = i32::MIN + 1;
-
-// acq:
-// inc writers
-// if 0->1 gOT IT
-// if resv is set -> try to eat it with cmpxchg
-// else sleep
-
-// rel:
-// dec writers
-// if 1->0 wake readers
-// else set resv; wake writer
-
-//const F_WRITER_LOCK: u32    = 0b10000000000000000000000000000000;
-//const F_WRITER_QUEUED: u32  = 0b01000000000000000000000000000000;
-
 const M_DEATH: u32          = 0b10100000000010000000001000000000;
 const F_WRITE_LOCK: u32     = 0b01000000000000000000000000000000;
 const M_WRITERS: u32        = 0b00011111111100000000000000000000;

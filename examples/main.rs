@@ -2,7 +2,7 @@
 extern crate libc;
 extern crate futex;
 
-type RwFutex = futex::rwfutex3::RwFutex2;
+type RwFutex = futex::rwfutex4::RwFutex2;
 use std::thread;
 use std::sync::Arc;
 

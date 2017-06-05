@@ -6,6 +6,7 @@ pub mod futex;
 pub mod rwfutex;
 pub mod rwfutex2;
 pub mod rwfutex3;
+pub mod rwfutex4;
 
 pub type Futex = futex::Futex;
 pub type RwFutex = rwfutex3::RwFutex2;

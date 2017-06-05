@@ -24,7 +24,7 @@ pub struct RwFutex2 {
 //const F_WRITER_QUEUED: u32  = 0b01000000000000000000000000000000;
 
 const M_DEATH: u32          = 0b10100000000010000000001000000000;
-const F_WRITE_RESERVED: u32 = 0b01000000000000000000000000000000;
+const F_WRITE_LOCK: u32     = 0b01000000000000000000000000000000;
 const M_WRITERS: u32        = 0b00011111111100000000000000000000;
 const M_READERS_QUEUED: u32 = 0b00000000000001111111110000000000;
 const M_READERS: u32        = 0b00000000000000000000000111111111;
@@ -118,12 +118,12 @@ impl RwFutex2 {
                     // got it!
                     break;
                 }
-            } else if val & F_WRITE_RESERVED != 0 {
+            } else if val & F_WRITE_LOCK != 0 {
                 // I'm one of (potentially many) waiting writers
                 // (slow path)
 
                 // hunger games: whoever manages to eat the reserved flag wins
-                let newval = self.futex.compare_and_swap(val, val & !F_WRITE_RESERVED, Ordering::Acquire);
+                let newval = self.futex.compare_and_swap(val, val & !F_WRITE_LOCK, Ordering::Acquire);
                 if val == newval {
                     // we won the race -> lock is ours
                     break;
@@ -163,7 +163,7 @@ impl RwFutex2 {
         if val & M_WRITERS > ONE_WRITER {
             // there are other writers waiting
             // we set the reserved flag to signal that one of them may wake up now
-            self.futex.fetch_or(F_WRITE_RESERVED, Ordering::Release);
+            self.futex.fetch_or(F_WRITE_LOCK, Ordering::Release);
             futex_wake_bitset(&self.futex, 1, ID_WRITER).unwrap();
         } else {
             // no writers -> wake up readers (if any)

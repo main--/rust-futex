@@ -1,7 +1,6 @@
 use std::{io, i32};
 use std::sync::atomic::{AtomicU32, Ordering};
 use sys::{futex_wait_bitset, futex_wake_bitset};
-use std::num::Wrapping;
 
 pub struct RwFutex2 {
     futex: AtomicU32,

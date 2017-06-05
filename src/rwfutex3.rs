@@ -94,13 +94,6 @@ impl RwFutex2 {
                     // got it
                     break;
                 }
-            } else if val & M_WRITERS == ONE_WRITER {
-                // I'm the only writer
-                have_lock = true;
-                if val & M_READERS == 0 {
-                    // got it!
-                    break;
-                }
             } else if val & F_WRITE_LOCK != 0 {
                 // I'm one of (potentially many) waiting writers
                 // (slow path)
@@ -112,6 +105,13 @@ impl RwFutex2 {
                     break;
                 } else {
                     continue;
+                }
+            } else if val & M_WRITERS == ONE_WRITER {
+                // I'm the only writer
+                have_lock = true;
+                if val & M_READERS == 0 {
+                    // got it!
+                    break;
                 }
             } // else a writer is active right now
 
@@ -143,7 +143,7 @@ impl RwFutex2 {
         let val = safe_sub(&self.futex, ONE_WRITER, Ordering::Release);
         println!("w{:08x}", val);
 
-        if val & M_WRITERS > ONE_WRITER {
+        if val & M_WRITERS != 0 {
             // there are other writers waiting
             // we set the reserved flag to signal that one of them may wake up now
             self.futex.fetch_or(F_WRITE_LOCK, Ordering::Release);

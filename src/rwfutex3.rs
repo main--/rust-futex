@@ -41,18 +41,19 @@ const ID_WRITER: i32 = 2;
 
 #[inline(always)]
 fn safe_add(dst: &AtomicU32, val: u32, ordering: Ordering) -> u32 {
-    let mut ret = Wrapping(dst.fetch_add(val, ordering));
-    if ret.0 & M_DEATH != 0 { die(dst) }
-    ret += Wrapping(val);
-    if ret.0 & M_DEATH != 0 { die(dst) }
-    ret.0
+    let mut ret = dst.fetch_add(val, ordering);
+    if ret & M_DEATH != 0 { die(dst) }
+    ret = ret.wrapping_add(val);
+    if ret & M_DEATH != 0 { die(dst) }
+    ret
 }
 
 #[inline(always)]
 fn safe_sub(dst: &AtomicU32, val: u32, ordering: Ordering) -> u32 {
-    safe_add(dst, (Wrapping(0) - Wrapping(val)).0, ordering)
+    safe_add(dst, val.wrapping_neg(), ordering)
 }
 
+#[cold]
 #[inline(never)]
 fn die(dst: &AtomicU32) -> ! {
     // make it as unlikely as possible for any possible group

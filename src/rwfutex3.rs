@@ -33,8 +33,6 @@ const ONE_WRITER: u32       = 0b00000000000100000000000000000000;
 const ONE_READER_QUEUED: u32 =0b00000000000000000000010000000000;
 const ONE_READER: u32       = 0b00000000000000000000000000000001;
 
-const F_WRITE: u32 = M_WRITERS | F_WRITE_RESERVED;
-
 const ID_READER: i32 = 1;
 const ID_WRITER: i32 = 2;
 
@@ -71,7 +69,7 @@ impl RwFutex2 {
     pub fn acquire_read(&self) {
         loop {
             let mut val = safe_add(&self.futex, ONE_READER, Ordering::Acquire);
-            if val & F_WRITE == 0 {
+            if val & M_WRITERS == 0 {
                 // got it
                 break;
             }
@@ -79,10 +77,10 @@ impl RwFutex2 {
             // writer lock - move from readers to readers_queued
             val = safe_add(&self.futex, ONE_READER_QUEUED - ONE_READER, Ordering::Acquire);
             
-            if val & F_WRITE == 0 {
+            if val & M_WRITERS == 0 {
                 // writer unlocked in the meantime - leave queue and retry
             } else {
-                if (val & M_READERS == 0) && (val & F_WRITE != 0) {
+                if (val & M_READERS == 0) && (val & M_WRITERS != 0) {
                     // fix deadlock if our temporary new reader
                     // interleaved with release_read() calls
                     // so that we reach zero HERE => might have to wake up writers

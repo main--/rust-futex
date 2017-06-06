@@ -1,8 +1,28 @@
 use std::i32;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::fmt::{Debug, Formatter, Result as FmtResult};
 use sys::{futex_wait_bitset, futex_wake_bitset};
 use std::intrinsics::likely;
 
+/// An efficient reader-writer lock (rwlock).
+///
+/// To recap, the invariant is: Either multiple readers or a single writer.
+///
+/// This is not designed for direct use but as a building block for locks.
+///
+/// Thus, it is not reentrant and it may misbehave if used incorrectly
+/// (i.e. you can release even if you're not even holding it).
+/// It's also not fair and it is designed to always prefer writers over readers.
+///
+/// The lock is heavily optimized for uncontended scenarios but performance
+/// should be close to ideal in any case except for when multiple writers
+/// are competing with each other.
+///
+/// The only drawback of the implementation is that it only supports a
+/// maximum of 511 simultaneous readers, queued readers and writers each.
+/// Anything beyond that overflows, causing all operations on the lock
+/// (starting from and including the one that overflowed it) to panic.
+/// This means that the rwlock invariant can never be compromised this way.
 pub struct RwFutex2 {
     futex: AtomicU32,
 }
@@ -44,12 +64,16 @@ fn die(dst: &AtomicU32) -> ! {
 }
 
 impl RwFutex2 {
+    /// Creates a new instance.
     pub fn new() -> RwFutex2 {
         RwFutex2 {
             futex: AtomicU32::new(0),
         }
     }
 
+    /// Acquires a read lock.
+    ///
+    /// This blocks until the lock is ours.
     #[inline]
     pub fn acquire_read(&self) {
         let val = safe_add(&self.futex, ONE_READER, Ordering::Acquire);
@@ -89,6 +113,9 @@ impl RwFutex2 {
         }
     }
 
+    /// Acquries a write lock.
+    ///
+    /// This blocks until the lock is ours.
     #[inline]
     pub fn acquire_write(&self) {
         let val = safe_add(&self.futex, ONE_WRITER, Ordering::Acquire);
@@ -140,6 +167,7 @@ impl RwFutex2 {
         }
     }
 
+    /// Releases a read lock.
     #[inline]
     pub fn release_read(&self) {
         let val = safe_sub(&self.futex, ONE_READER, Ordering::Release);
@@ -150,6 +178,7 @@ impl RwFutex2 {
         }
     }
 
+    /// Releases a write lock.
     #[inline]
     pub fn release_write(&self) {
         let val = safe_sub(&self.futex, ONE_WRITER, Ordering::Release);
@@ -176,3 +205,15 @@ impl RwFutex2 {
     }
 }
 
+impl Default for RwFutex2 {
+    fn default() -> RwFutex2 {
+        RwFutex2::new()
+    }
+}
+
+impl Debug for RwFutex2 {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        write!(f, "RwFutex@{:p} (=0x{:08x})", &self.futex as *const _,
+               self.futex.load(Ordering::SeqCst))
+    }
+}

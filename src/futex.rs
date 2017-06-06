@@ -3,17 +3,27 @@ use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::sync::atomic::{AtomicI32, Ordering};
 use sys::{futex_wait, futex_wake};
 
+/// A simple mutual exclusion lock (mutex).
+///
+/// This is not designed for direct use but as a building block for locks.
+///
+/// Thus, it is not reentrant and it may misbehave if used incorrectly
+/// (i.e. you can release even if someone else is holding it).
+/// It's also not fair.
 pub struct Futex {
     futex: AtomicI32
 }
 
 impl Futex {
-    /// Creates a new `Futex`.
+    /// Creates a new instance.
     pub fn new() -> Futex {
         Futex { futex: AtomicI32::new(1) }
     }
 
     // TOOD: review memory orderings
+    /// Acquires the lock.
+    ///
+    /// This blocks until the lock is ours.
     pub fn acquire(&self) {
         loop {
             match self.futex.fetch_sub(1, Ordering::Acquire) {
@@ -21,6 +31,8 @@ impl Futex {
                 _ => {
                     // lock is contended :(
                     self.futex.store(-1, Ordering::Relaxed);
+                    // FIXME: deadlock if release stores the 1, we overwrite with -1 here
+                    //        but they wake us up before we wait
                     match futex_wait(&self.futex, -1) {
                         Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => (),
                         Err(ref e) if e.kind() == io::ErrorKind::Interrupted => (),
@@ -32,6 +44,14 @@ impl Futex {
         }
     }
 
+    /// Attempts to acquire the lock without blocking.
+    ///
+    /// Returns `true` if the lock was acquired, `false` otherwise.
+    pub fn try_acquire(&self) -> bool {
+        self.futex.compare_and_swap(1, 0, Ordering::Acquire) == 1
+    }
+
+    /// Releases the lock.
     pub fn release(&self) {
         match self.futex.fetch_add(1, Ordering::Release) {
             0 => return, // jobs done - no waiters
@@ -41,6 +61,12 @@ impl Futex {
                 futex_wake(&self.futex, i32::MAX).unwrap();
             }
         }
+    }
+}
+
+impl Default for Futex {
+    fn default() -> Futex {
+        Futex::new()
     }
 }
 

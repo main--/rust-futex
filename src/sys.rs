@@ -43,22 +43,29 @@ pub fn futex_wake(futex: &AtomicI32, count: i32) -> io::Result<i32> {
 }
 
 #[inline(never)]
-pub fn futex_wait_bitset(futex: &AtomicU32, val: u32, mask: i32) -> io::Result<()> {
+pub fn futex_wait_bitset(futex: &AtomicU32, val: u32, mask: i32) {
+    assert!(mask != 0);
     let ret = unsafe { do_futex(futex as *const _ as *mut i32,
                                 FUTEX_WAIT_BITSET,
                                 val as i32,
                                 ptr::null(),
                                 ptr::null_mut(),
                                 mask) };
-    match ret {
-        0 => Ok(()),
-        -1 => Err(io::Error::last_os_error()),
-        _ => unreachable!(),
+
+    if ret == -1 {
+        match io::Error::last_os_error().kind() {
+            io::ErrorKind::WouldBlock => (),
+            io::ErrorKind::Interrupted => (),
+            _ => unreachable!(),
+        }
+    } else if ret != 0 {
+        unreachable!();
     }
 }
 
 #[inline(never)]
-pub fn futex_wake_bitset(futex: &AtomicU32, count: u32, mask: i32) -> io::Result<i32> {
+pub fn futex_wake_bitset(futex: &AtomicU32, count: u32, mask: i32) -> i32 {
+    assert!(mask != 0);
     let ret = unsafe { do_futex(futex as *const _ as *mut i32,
                                 FUTEX_WAKE_BITSET,
                                 count as i32,
@@ -66,8 +73,8 @@ pub fn futex_wake_bitset(futex: &AtomicU32, count: u32, mask: i32) -> io::Result
                                 ptr::null_mut(),
                                 mask) };
     if ret == -1 {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(ret)
+        unreachable!();
     }
+
+    ret
 }

@@ -18,7 +18,7 @@ fn main() {
         println!("thread reader");
         thread::sleep_ms(100);
         futex2.release_read();
-        let resv = futex2.acquire_write();
+        futex2.acquire_write();
         println!("thread writer");
         thread::sleep_ms(100);
         futex2.release_write();
@@ -35,7 +35,7 @@ fn main() {
     thread::sleep_ms(100);
     futex.release_read();
     thread::sleep_ms(100);
-    let resv = futex.acquire_write();
+    futex.acquire_write();
     println!("main writer");
     thread::sleep_ms(100);
     futex.release_write();

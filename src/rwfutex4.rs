@@ -1,4 +1,4 @@
-use std::{io, i32};
+use std::i32;
 use std::sync::atomic::{AtomicU32, Ordering};
 use sys::{futex_wait_bitset, futex_wake_bitset};
 use std::intrinsics::likely;
@@ -78,16 +78,10 @@ impl RwFutex2 {
                     // fix deadlock if our temporary new reader
                     // interleaved with release_read() calls
                     // so that we reach zero HERE => might have to wake up writers
-                    futex_wake_bitset(&self.futex, 1, ID_WRITER).unwrap();
+                    futex_wake_bitset(&self.futex, 1, ID_WRITER);
                 }
             
-                if let Err(e) = futex_wait_bitset(&self.futex, val, ID_READER) {
-                    match e.kind() {
-                        io::ErrorKind::WouldBlock
-                            | io::ErrorKind::Interrupted => (), // ok
-                        _ => unreachable!(),
-                    }
-                }
+                futex_wait_bitset(&self.futex, val, ID_READER);
             }
 
             // no longer waiting - leave the queue
@@ -98,11 +92,11 @@ impl RwFutex2 {
     #[inline]
     pub fn acquire_write(&self) {
         let val = safe_add(&self.futex, ONE_WRITER, Ordering::Acquire);
-        if (val & F_WRITE_SHOVE == 0)
-            && (val & M_WRITERS == ONE_WRITER)
-            && (val & M_READERS == 0) {
-                // got it
-                return;
+        if unsafe { likely((val & F_WRITE_SHOVE == 0)
+                           && (val & M_WRITERS == ONE_WRITER)
+                           && (val & M_READERS == 0)) } {
+            // got it
+            return;
         }
         self.acquire_write_slow(val)
     }
@@ -140,13 +134,7 @@ impl RwFutex2 {
             } // else a writer is active right now
 
             // (slowest path - we wait)
-            if let Err(e) = futex_wait_bitset(&self.futex, val, ID_WRITER) {
-                match e.kind() {
-                    io::ErrorKind::WouldBlock
-                        | io::ErrorKind::Interrupted => (), // ok
-                    _ => unreachable!(),
-                }
-            }
+            futex_wait_bitset(&self.futex, val, ID_WRITER);
 
             val = self.futex.load(Ordering::Acquire);
         }
@@ -157,7 +145,7 @@ impl RwFutex2 {
         let val = safe_sub(&self.futex, ONE_READER, Ordering::Release);
         if (val & M_READERS == 0) && (val & M_WRITERS != 0) {
             // was 1 => now 0 => no more readers => writers queued => wake one up
-            let ret = futex_wake_bitset(&self.futex, 1, ID_WRITER).unwrap();
+            let ret = futex_wake_bitset(&self.futex, 1, ID_WRITER);
             debug_assert_eq!(ret, 1);
         }
     }
@@ -178,11 +166,11 @@ impl RwFutex2 {
             // there are other writers waiting
             // we set the shove flag to signal that one of them may wake up now
             self.futex.fetch_or(F_WRITE_SHOVE, Ordering::Release);
-            futex_wake_bitset(&self.futex, 1, ID_WRITER).unwrap();
+            futex_wake_bitset(&self.futex, 1, ID_WRITER);
         } else {
             // no writers -> wake up readers (if any)
             if val & M_READERS_QUEUED != 0 {
-                futex_wake_bitset(&self.futex, i32::MAX as u32, ID_READER).unwrap();
+                futex_wake_bitset(&self.futex, i32::MAX as u32, ID_READER);
             }
         }
     }

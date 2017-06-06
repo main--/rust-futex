@@ -1,4 +1,4 @@
-use std::{io, i32};
+use std::i32;
 use std::sync::atomic::{AtomicU32, Ordering};
 use sys::{futex_wait_bitset, futex_wake_bitset};
 
@@ -58,16 +58,10 @@ impl RwFutex2 {
                 // fix deadlock if our temporary new reader
                 // interleaved with release_read() calls
                 // so that we reach zero HERE => might have to wake up writers
-                futex_wake_bitset(&self.futex, 1, ID_WRITER).unwrap();
+                futex_wake_bitset(&self.futex, 1, ID_WRITER);
             }
             
-            if let Err(e) = futex_wait_bitset(&self.futex, val, ID_READER) {
-                match e.kind() {
-                    io::ErrorKind::WouldBlock
-                        | io::ErrorKind::Interrupted => (), // ok
-                    _ => unreachable!(),
-                }
-            }
+            futex_wait_bitset(&self.futex, val, ID_READER);
         }
     }
 
@@ -95,13 +89,7 @@ impl RwFutex2 {
                 break;
             }
             
-            if let Err(e) = futex_wait_bitset(&self.futex, val, ID_WRITER) {
-                match e.kind() {
-                    io::ErrorKind::WouldBlock
-                        | io::ErrorKind::Interrupted => (), // ok
-                    _ => unreachable!(),
-                }
-            }
+            futex_wait_bitset(&self.futex, val, ID_WRITER);
         }
         false
     }
@@ -111,7 +99,7 @@ impl RwFutex2 {
         println!("r{:08x}", val);
         if (val & M_READERS == ONE_READER) && (val & E_WRITERS_LOCK != 0) {
             // was 1 => now 0 => no more readers => writers queued => wake one up
-            let ret = futex_wake_bitset(&self.futex, 1, ID_WRITER).unwrap();
+            let ret = futex_wake_bitset(&self.futex, 1, ID_WRITER);
             assert_eq!(ret, 1);
         }
     }
@@ -126,7 +114,7 @@ impl RwFutex2 {
             // (the resv=true case is a little more complicated:
             //  we acquired while the lock was reserved, thus the OVER/RESV
             //  flag might be garbled, so we have to try to wake up here either way)
-            if futex_wake_bitset(&self.futex, 1, ID_WRITER).unwrap() == 1 {
+            if futex_wake_bitset(&self.futex, 1, ID_WRITER) == 1 {
                 // woke up a writer -> get out
                 return;
             }
@@ -151,7 +139,7 @@ impl RwFutex2 {
         }
         
         if val & M_READERS_QUEUED != 0 {
-            let ret = futex_wake_bitset(&self.futex, i32::MAX as u32, ID_READER).unwrap() as u32;
+            let ret = futex_wake_bitset(&self.futex, i32::MAX as u32, ID_READER) as u32;
             //assert_eq!(ret * ONE_READER_QUEUED, val & M_READERS_QUEUED); // FIXME: this is wrong (racy)
             let _ = ret;
         }

@@ -42,7 +42,7 @@ pub fn futex_wake(futex: &AtomicI32, count: i32) -> io::Result<i32> {
     }
 }
 
-#[inline]
+#[inline(never)]
 pub fn futex_wait_bitset(futex: &AtomicU32, val: u32, mask: i32) -> io::Result<()> {
     let ret = unsafe { do_futex(futex as *const _ as *mut i32,
                                 FUTEX_WAIT_BITSET,
@@ -57,7 +57,7 @@ pub fn futex_wait_bitset(futex: &AtomicU32, val: u32, mask: i32) -> io::Result<(
     }
 }
 
-#[inline]
+#[inline(never)]
 pub fn futex_wake_bitset(futex: &AtomicU32, count: u32, mask: i32) -> io::Result<i32> {
     let ret = unsafe { do_futex(futex as *const _ as *mut i32,
                                 FUTEX_WAKE_BITSET,

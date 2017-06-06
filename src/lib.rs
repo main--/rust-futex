@@ -1,4 +1,4 @@
-#![feature(integer_atomics)]
+#![feature(integer_atomics, core_intrinsics)]
 extern crate libc;
 
 mod sys;

@@ -1,6 +1,7 @@
 use std::{io, i32};
 use std::sync::atomic::{AtomicU32, Ordering};
 use sys::{futex_wait_bitset, futex_wake_bitset};
+use std::intrinsics::likely;
 
 pub struct RwFutex2 {
     futex: AtomicU32,
@@ -52,7 +53,7 @@ impl RwFutex2 {
     #[inline]
     pub fn acquire_read(&self) {
         let val = safe_add(&self.futex, ONE_READER, Ordering::Acquire);
-        if val & M_WRITERS == 0 {
+        if unsafe { likely(val & M_WRITERS == 0) } {
             // got it
             return;
         }
@@ -148,26 +149,31 @@ impl RwFutex2 {
             }
 
             val = self.futex.load(Ordering::Acquire);
-            println!("awrl{:08x} {}", val, have_lock);
         }
     }
 
     #[inline]
     pub fn release_read(&self) {
         let val = safe_sub(&self.futex, ONE_READER, Ordering::Release);
-        println!("r{:08x}", val);
         if (val & M_READERS == 0) && (val & M_WRITERS != 0) {
             // was 1 => now 0 => no more readers => writers queued => wake one up
             let ret = futex_wake_bitset(&self.futex, 1, ID_WRITER).unwrap();
-            assert_eq!(ret, 1);
+            debug_assert_eq!(ret, 1);
         }
     }
 
     #[inline]
     pub fn release_write(&self) {
         let val = safe_sub(&self.futex, ONE_WRITER, Ordering::Release);
-        println!("w{:08x}", val);
+        if unsafe { likely((val & M_WRITERS == 0)
+                           && (val & M_READERS_QUEUED == 0)) } {
+            return;
+        }
+        self.release_write_slow(val)
+    }
 
+    #[inline(never)]
+    fn release_write_slow(&self, val: u32) {
         if val & M_WRITERS != 0 {
             // there are other writers waiting
             // we set the shove flag to signal that one of them may wake up now

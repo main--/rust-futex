@@ -2,13 +2,13 @@
 extern crate libc;
 extern crate futex;
 
-type RwFutex = futex::rwfutex4::RwFutex2;
+use futex::raw::RwLock;
 use std::thread;
 use std::sync::Arc;
 
 fn main() {
     println!("lul");
-    let futex = Arc::new(RwFutex::new());
+    let futex = Arc::new(RwLock::new());
     let futex2 = futex.clone();
     futex.acquire_read();
     futex.acquire_read();

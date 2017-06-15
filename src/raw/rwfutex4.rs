@@ -1,8 +1,15 @@
 use std::i32;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::Ordering;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use sys::{futex_wait_bitset, futex_wake_bitset};
+use integer_atomics::AtomicU32;
+
+#[cfg(feature = "nightly")]
 use std::intrinsics::likely;
+
+#[inline(always)]
+#[cfg(not(feature = "nightly"))]
+unsafe fn likely(b: bool) -> bool { b }
 
 /// An efficient reader-writer lock (rwlock).
 ///

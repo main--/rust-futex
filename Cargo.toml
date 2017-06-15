@@ -2,8 +2,12 @@
 name = "futex"
 description = "Linux futex-based lock implementations."
 license = "MIT"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["main() <main@ehvag.de>"]
 
 [dependencies]
 libc = "0.2"
+integer-atomics = "1.0"
+
+[features]
+nightly = ["integer-atomics/nightly"]

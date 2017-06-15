@@ -1,6 +1,6 @@
 use libc::{c_int, syscall, timespec};
 use std::{ptr, io, i32};
-use std::sync::atomic::{AtomicI32, AtomicU32};
+use integer_atomics::{AtomicI32, AtomicU32};
 
 const FUTEX_WAIT: c_int = 0;
 const FUTEX_WAKE: c_int = 1;

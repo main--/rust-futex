@@ -1,6 +1,7 @@
 use std::{io, i32};
 use std::fmt::{Debug, Formatter, Result as FmtResult};
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::Ordering;
+use integer_atomics::AtomicI32;
 use sys::{futex_wait, futex_wake};
 
 /// A simple mutual exclusion lock (mutex).

@@ -1,5 +1,7 @@
 [package]
 name = "futex"
+description = "Linux futex-based lock implementations."
+license = "MIT"
 version = "0.1.0"
 authors = ["main() <main@ehvag.de>"]
 

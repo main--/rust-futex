@@ -9,19 +9,19 @@ pub use self::futex::Futex as Mutex;
 pub use self::rwfutex4::RwFutex2 as RwLock;
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod tests {
     use std::thread;
+    use std::time::Duration;
     use std::sync::Arc;
     use super::*;
-    
+
     #[test]
     fn mutex() {
         let futex = Arc::new(Mutex::new());
         let futex2 = futex.clone();
         futex.acquire();
         thread::spawn(move || {
-            thread::sleep_ms(100);
+            thread::sleep(Duration::from_millis(100));
             futex2.release();
         }).join().unwrap();
         futex.acquire();
@@ -30,7 +30,6 @@ mod tests {
 
     #[test]
     fn rwlock() {
-        println!("lul");
         let futex = Arc::new(RwLock::new());
         let futex2 = futex.clone();
         futex.acquire_read();
@@ -40,7 +39,7 @@ mod tests {
             futex2.acquire_read();
             futex2.release_read();
             futex2.acquire_write();
-            thread::sleep_ms(100);
+            thread::sleep(Duration::from_millis(100));
             futex2.release_write();
         });
         futex.release_read();

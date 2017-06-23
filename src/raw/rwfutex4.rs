@@ -101,7 +101,7 @@ impl RwFutex2 {
 
             // writer lock - move from readers to readers_queued
             val = safe_add(&self.futex, ONE_READER_QUEUED - ONE_READER, Ordering::Acquire);
-            
+
             if val & M_WRITERS == 0 {
                 // writer unlocked in the meantime - leave queue and retry
             } else {
@@ -111,7 +111,7 @@ impl RwFutex2 {
                     // so that we reach zero HERE => might have to wake up writers
                     futex_wake_bitset(&self.futex, 1, ID_WRITER);
                 }
-            
+
                 futex_wait_bitset(&self.futex, val, ID_READER);
             }
 

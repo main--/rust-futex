@@ -180,8 +180,7 @@ impl RwFutex2 {
         let val = safe_sub(&self.futex, ONE_READER, Ordering::Release);
         if (val & M_READERS == 0) && (val & M_WRITERS != 0) {
             // was 1 => now 0 => no more readers => writers queued => wake one up
-            let ret = futex_wake_bitset(&self.futex, 1, ID_WRITER);
-            debug_assert_eq!(ret, 1);
+            futex_wake_bitset(&self.futex, 1, ID_WRITER);
         }
     }
 

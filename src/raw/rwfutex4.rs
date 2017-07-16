@@ -3,6 +3,7 @@ use std::sync::atomic::Ordering;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use sys::{futex_wait_bitset, futex_wake_bitset};
 use integer_atomics::AtomicU32;
+use lock_wrappers::raw::RwLock;
 
 #[cfg(feature = "nightly")]
 use std::intrinsics::likely;
@@ -71,26 +72,6 @@ fn die(dst: &AtomicU32) -> ! {
 }
 
 impl RwFutex2 {
-    /// Creates a new instance.
-    pub fn new() -> RwFutex2 {
-        RwFutex2 {
-            futex: AtomicU32::new(0),
-        }
-    }
-
-    /// Acquires a read lock.
-    ///
-    /// This blocks until the lock is ours.
-    #[inline]
-    pub fn acquire_read(&self) {
-        let val = safe_add(&self.futex, ONE_READER, Ordering::Acquire);
-        if unsafe { likely(val & M_WRITERS == 0) } {
-            // got it
-            return;
-        }
-        self.acquire_read_slow(val)
-    }
-
     #[inline(never)]
     fn acquire_read_slow(&self, mut val: u32) {
         loop {
@@ -118,21 +99,6 @@ impl RwFutex2 {
             // no longer waiting - leave the queue
             val = safe_add(&self.futex, ONE_READER.wrapping_sub(ONE_READER_QUEUED), Ordering::Acquire);
         }
-    }
-
-    /// Acquries a write lock.
-    ///
-    /// This blocks until the lock is ours.
-    #[inline]
-    pub fn acquire_write(&self) {
-        let val = safe_add(&self.futex, ONE_WRITER, Ordering::Acquire);
-        if unsafe { likely((val & F_WRITE_SHOVE == 0)
-                           && (val & M_WRITERS == ONE_WRITER)
-                           && (val & M_READERS == 0)) } {
-            // got it
-            return;
-        }
-        self.acquire_write_slow(val)
     }
 
     #[inline(never)]
@@ -174,27 +140,6 @@ impl RwFutex2 {
         }
     }
 
-    /// Releases a read lock.
-    #[inline]
-    pub fn release_read(&self) {
-        let val = safe_sub(&self.futex, ONE_READER, Ordering::Release);
-        if (val & M_READERS == 0) && (val & M_WRITERS != 0) {
-            // was 1 => now 0 => no more readers => writers queued => wake one up
-            futex_wake_bitset(&self.futex, 1, ID_WRITER);
-        }
-    }
-
-    /// Releases a write lock.
-    #[inline]
-    pub fn release_write(&self) {
-        let val = safe_sub(&self.futex, ONE_WRITER, Ordering::Release);
-        if unsafe { likely((val & M_WRITERS == 0)
-                           && (val & M_READERS_QUEUED == 0)) } {
-            return;
-        }
-        self.release_write_slow(val)
-    }
-
     #[inline(never)]
     fn release_write_slow(&self, val: u32) {
         if val & M_WRITERS != 0 {
@@ -211,9 +156,66 @@ impl RwFutex2 {
     }
 }
 
+impl RwLock for RwFutex2 {
+    type ReadLockState = ();
+    type WriteLockState = ();
+
+    /// Acquires a read lock.
+    ///
+    /// This blocks until the lock is ours.
+    #[inline]
+    fn acquire_read(&self) {
+        let val = safe_add(&self.futex, ONE_READER, Ordering::Acquire);
+        if unsafe { likely(val & M_WRITERS == 0) } {
+            // got it
+            return;
+        }
+        self.acquire_read_slow(val)
+    }
+
+    /// Acquries a write lock.
+    ///
+    /// This blocks until the lock is ours.
+    #[inline]
+    fn acquire_write(&self) {
+        let val = safe_add(&self.futex, ONE_WRITER, Ordering::Acquire);
+        if unsafe { likely((val & F_WRITE_SHOVE == 0)
+                           && (val & M_WRITERS == ONE_WRITER)
+                           && (val & M_READERS == 0)) } {
+            // got it
+            return;
+        }
+        self.acquire_write_slow(val)
+    }
+
+    /// Releases a read lock.
+    #[inline]
+    fn release_read(&self, _: ()) {
+        let val = safe_sub(&self.futex, ONE_READER, Ordering::Release);
+        if (val & M_READERS == 0) && (val & M_WRITERS != 0) {
+            // was 1 => now 0 => no more readers => writers queued => wake one up
+            futex_wake_bitset(&self.futex, 1, ID_WRITER);
+        }
+    }
+
+    /// Releases a write lock.
+    #[inline]
+    fn release_write(&self, _: ()) {
+        let val = safe_sub(&self.futex, ONE_WRITER, Ordering::Release);
+        if unsafe { likely((val & M_WRITERS == 0)
+                           && (val & M_READERS_QUEUED == 0)) } {
+            return;
+        }
+        self.release_write_slow(val)
+    }
+}
+
 impl Default for RwFutex2 {
+    /// Creates a new instance.
     fn default() -> RwFutex2 {
-        RwFutex2::new()
+        RwFutex2 {
+            futex: AtomicU32::new(0),
+        }
     }
 }
 

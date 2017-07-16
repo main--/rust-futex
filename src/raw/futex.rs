@@ -2,6 +2,7 @@ use std::{io, i32};
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::sync::atomic::Ordering;
 use integer_atomics::AtomicI32;
+use lock_wrappers::raw::Mutex;
 use sys::{futex_wait, futex_wake};
 
 /// A simple mutual exclusion lock (mutex).
@@ -15,17 +16,14 @@ pub struct Futex {
     futex: AtomicI32
 }
 
-impl Futex {
-    /// Creates a new instance.
-    pub fn new() -> Futex {
-        Futex { futex: AtomicI32::new(1) }
-    }
+impl Mutex for Futex {
+    type LockState = ();
 
     // TOOD: review memory orderings
     /// Acquires the lock.
     ///
     /// This blocks until the lock is ours.
-    pub fn acquire(&self) {
+    fn lock(&self) {
         loop {
             match self.futex.fetch_sub(1, Ordering::Acquire) {
                 1 => return, // jobs done - we got the lock
@@ -48,12 +46,16 @@ impl Futex {
     /// Attempts to acquire the lock without blocking.
     ///
     /// Returns `true` if the lock was acquired, `false` otherwise.
-    pub fn try_acquire(&self) -> bool {
-        self.futex.compare_and_swap(1, 0, Ordering::Acquire) == 1
+    fn try_lock(&self) -> Option<()> {
+        if self.futex.compare_and_swap(1, 0, Ordering::Acquire) == 1 {
+            Some(())
+        } else {
+            None
+        }
     }
 
     /// Releases the lock.
-    pub fn release(&self) {
+    fn unlock(&self, _: ()) {
         match self.futex.fetch_add(1, Ordering::Release) {
             0 => return, // jobs done - no waiters
             _ => {
@@ -66,8 +68,9 @@ impl Futex {
 }
 
 impl Default for Futex {
+    /// Creates a new instance.
     fn default() -> Futex {
-        Futex::new()
+        Futex { futex: AtomicI32::new(1) }
     }
 }
 
